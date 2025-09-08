@@ -135,9 +135,11 @@ class StethoscopeModel {
       // ✅ Handle different bit depths like Python sf.read() does
       final bytesPerSample = bitsPerSample ~/ 8;
       final samplesTotal = dataSize ~/ (bytesPerSample * numChannels);
-      
-      print('DEBUG: Audio format - $bitsPerSample-bit, $numChannels channels, $samplesTotal samples');
-      
+
+      print(
+        'DEBUG: Audio format - $bitsPerSample-bit, $numChannels channels, $samplesTotal samples',
+      );
+
       if (bitsPerSample == 16) {
         // 16-bit PCM
         if (numChannels == 1) {
@@ -171,7 +173,8 @@ class StethoscopeModel {
           // Stereo: average left and right channels to create mono
           for (int i = dataOffset; i + 5 < end; i += 6) {
             int left = bytes[i] | (bytes[i + 1] << 8) | (bytes[i + 2] << 16);
-            int right = bytes[i + 3] | (bytes[i + 4] << 8) | (bytes[i + 5] << 16);
+            int right =
+                bytes[i + 3] | (bytes[i + 4] << 8) | (bytes[i + 5] << 16);
             if (left > 8388607) left -= 16777216;
             if (right > 8388607) right -= 16777216;
             double mono = (left + right) / 2.0 / 8388608.0;
@@ -179,17 +182,21 @@ class StethoscopeModel {
           }
         }
       } else {
-        throw Exception('Unsupported bit depth: $bitsPerSample bits. Only 16-bit and 24-bit are supported.');
+        throw Exception(
+          'Unsupported bit depth: $bitsPerSample bits. Only 16-bit and 24-bit are supported.',
+        );
       }
 
       // ✅ Audio loaded and converted to [-1, 1] range
       print(
         'DEBUG: Loaded PCM samples: ${pcmRaw.length}, abs_max: ${pcmRaw.map((x) => x.abs()).reduce((a, b) => a > b ? a : b)}',
       );
-      
+
       // Debug: Print first few samples to compare with Python
       if (pcmRaw.length >= 10) {
-        print('DEBUG: First 10 raw samples: ${pcmRaw.take(10).map((x) => x.toStringAsFixed(6)).toList()}');
+        print(
+          'DEBUG: First 10 raw samples: ${pcmRaw.take(10).map((x) => x.toStringAsFixed(6)).toList()}',
+        );
       }
 
       // If sampleRate != 16k, resample
@@ -248,28 +255,42 @@ class StethoscopeModel {
     }
 
     print('DEBUG: Prepared raw audio signal with ${signal.length} samples');
-    
+
     // Debug: Check actual audio values
     if (signal.isNotEmpty) {
-      final audioMax = signal.map((x) => x.abs()).reduce((a, b) => a > b ? a : b);
+      final audioMax = signal
+          .map((x) => x.abs())
+          .reduce((a, b) => a > b ? a : b);
       final audioMin = signal.reduce((a, b) => a < b ? a : b);
       final audioMaxPos = signal.reduce((a, b) => a > b ? a : b);
-      
+
       // Calculate additional audio statistics
       double mean = signal.reduce((a, b) => a + b) / signal.length;
-      double sumSquaredDiff = signal.map((x) => (x - mean) * (x - mean)).reduce((a, b) => a + b);
+      double sumSquaredDiff = signal
+          .map((x) => (x - mean) * (x - mean))
+          .reduce((a, b) => a + b);
       double stdDev = math.sqrt(sumSquaredDiff / signal.length);
-      double rms = math.sqrt(signal.map((x) => x * x).reduce((a, b) => a + b) / signal.length);
-      
+      double rms = math.sqrt(
+        signal.map((x) => x * x).reduce((a, b) => a + b) / signal.length,
+      );
+
       // Count zero/near-zero samples
       int zeroSamples = signal.where((x) => x.abs() < 0.001).length;
       double zeroPercentage = (zeroSamples / signal.length) * 100;
-      
-      print('DEBUG: Audio range - min: $audioMin, max: $audioMaxPos, abs_max: $audioMax');
-      print('DEBUG: Audio stats - mean: ${mean.toStringAsFixed(6)}, std: ${stdDev.toStringAsFixed(6)}, rms: ${rms.toStringAsFixed(6)}');
-      print('DEBUG: Zero samples: $zeroSamples/${signal.length} (${zeroPercentage.toStringAsFixed(1)}%)');
+
+      print(
+        'DEBUG: Audio range - min: $audioMin, max: $audioMaxPos, abs_max: $audioMax',
+      );
+      print(
+        'DEBUG: Audio stats - mean: ${mean.toStringAsFixed(6)}, std: ${stdDev.toStringAsFixed(6)}, rms: ${rms.toStringAsFixed(6)}',
+      );
+      print(
+        'DEBUG: Zero samples: $zeroSamples/${signal.length} (${zeroPercentage.toStringAsFixed(1)}%)',
+      );
       print('DEBUG: First 10 samples: ${signal.take(10).toList()}');
-      print('DEBUG: Last 10 samples: ${signal.skip(signal.length - 10).toList()}');
+      print(
+        'DEBUG: Last 10 samples: ${signal.skip(signal.length - 10).toList()}',
+      );
     }
 
     // Create input tensor: [1, 32000, 1]
@@ -292,9 +313,21 @@ class StethoscopeModel {
 
     // Log detailed prediction results
     print('DEBUG: Raw logits: ${output[0]}');
-    print('DEBUG: Softmax probs: ${probs.map((p) => p.toStringAsFixed(4)).toList()}');
-    print('DEBUG: Predicted: $predictedClass (${(confidence * 100).toStringAsFixed(1)}%)');
-    print('DEBUG: File type: ${audioFile.contains('Meditron') ? 'Meditron' : audioFile.contains('pneumonia') ? 'Pneumonia' : audioFile.contains('normal') ? 'Normal' : 'Other'}');
+    print(
+      'DEBUG: Softmax probs: ${probs.map((p) => p.toStringAsFixed(4)).toList()}',
+    );
+    print(
+      'DEBUG: Predicted: $predictedClass (${(confidence * 100).toStringAsFixed(1)}%)',
+    );
+    print(
+      'DEBUG: File type: ${audioFile.contains('Meditron')
+          ? 'Meditron'
+          : audioFile.contains('pneumonia')
+          ? 'Pneumonia'
+          : audioFile.contains('normal')
+          ? 'Normal'
+          : 'Other'}',
+    );
 
     return {
       'predicted_class': predictedClass,
