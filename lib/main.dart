@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:stethapp/home_page.dart';
+import 'package:stethapp/login_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const HomePage(),
+      home: const LoginPage(),
       debugShowCheckedModeBanner: false,
     );
   }
