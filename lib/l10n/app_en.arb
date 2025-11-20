@@ -1,0 +1,178 @@
+{
+  "appTitle": "StethApp",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "login": "Login",
+  "@login": {
+    "description": "Login button text"
+  },
+  "email": "Email",
+  "@email": {
+    "description": "Email field label"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Password field label"
+  },
+  "connectStethoscope": "Connect Stethoscope",
+  "@connectStethoscope": {
+    "description": "Connect stethoscope button text"
+  },
+  "startAIAnalysis": "Start AI Analysis",
+  "@startAIAnalysis": {
+    "description": "Start AI analysis button text"
+  },
+  "connectionMethod": "Connection Method",
+  "@connectionMethod": {
+    "description": "Connection method dialog title"
+  },
+  "wifi": "Wi-Fi",
+  "@wifi": {
+    "description": "Wi-Fi connection option"
+  },
+  "bluetooth": "Bluetooth",
+  "@bluetooth": {
+    "description": "Bluetooth connection option"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button text"
+  },
+  "connectingViaWifi": "Connecting via Wi-Fi...",
+  "@connectingViaWifi": {
+    "description": "Wi-Fi connection progress message"
+  },
+  "connectedViaWifiSuccess": "Connected via Wi-Fi successfully!",
+  "@connectedViaWifiSuccess": {
+    "description": "Wi-Fi connection success message"
+  },
+  "pairingViaBluetooth": "Pairing via Bluetooth...",
+  "@pairingViaBluetooth": {
+    "description": "Bluetooth pairing progress message"
+  },
+  "connectedViaBluetoothSuccess": "Connected via Bluetooth successfully!",
+  "@connectedViaBluetoothSuccess": {
+    "description": "Bluetooth connection success message"
+  },
+  "usingDummyDataset": "Using dummy dataset for demo",
+  "@usingDummyDataset": {
+    "description": "Demo dataset notification"
+  },
+  "modelNotLoaded": "Model not loaded yet",
+  "@modelNotLoaded": {
+    "description": "Model not loaded warning"
+  },
+  "modelLoadedSuccess": "Model loaded successfully",
+  "@modelLoadedSuccess": {
+    "description": "Model loaded success message"
+  },
+  "failedToLoadModel": "Failed to load model",
+  "@failedToLoadModel": {
+    "description": "Model loading failure message"
+  },
+  "analysisFailed": "Analysis failed: {error}",
+  "@analysisFailed": {
+    "description": "Analysis failure message",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "description": "Error message"
+      }
+    }
+  },
+  "failedToLoadAudioFiles": "Failed to load audio files: {error}",
+  "@failedToLoadAudioFiles": {
+    "description": "Audio files loading failure message",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "description": "Error message"
+      }
+    }
+  },
+  "loadingAudioFiles": "Loading Audio Files...",
+  "@loadingAudioFiles": {
+    "description": "Loading audio files dialog title"
+  },
+  "audioDatasetResults": "Audio Dataset Results",
+  "@audioDatasetResults": {
+    "description": "Audio dataset results dialog title"
+  },
+  "stethoscopeDisconnected": "Stethoscope disconnected",
+  "@stethoscopeDisconnected": {
+    "description": "Stethoscope disconnected message"
+  },
+  "close": "Close",
+  "@close": {
+    "description": "Close button text"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Language selection label"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings menu item"
+  },
+  "appSubtitle": "Listen and analyze heart & lung sounds with AI",
+  "@appSubtitle": { "description": "Subtitle for the application" },
+  "welcomeBack": "Welcome Back!",
+  "@welcomeBack": { "description": "Welcome back header" },
+  "signInToContinue": "Sign in to continue",
+  "@signInToContinue": { "description": "Prompt to sign in" },
+  "enterEmail": "Enter your email",
+  "@enterEmail": { "description": "Hint text for email field" },
+  "pleaseEnterEmail": "Please enter your email",
+  "@pleaseEnterEmail": { "description": "Validation message for empty email" },
+  "pleaseEnterValidEmail": "Please enter a valid email",
+  "@pleaseEnterValidEmail": { "description": "Validation message for invalid email" },
+  "enterPassword": "Enter your password",
+  "@enterPassword": { "description": "Hint text for password field" },
+  "pleaseEnterPassword": "Please enter your password",
+  "@pleaseEnterPassword": { "description": "Validation message for empty password" },
+  "passwordMinLength": "Password must be at least 6 characters",
+  "@passwordMinLength": { "description": "Validation message for short password" },
+  "rememberMe": "Remember Me",
+  "@rememberMe": { "description": "Remember me checkbox label" },
+  "forgotPassword": "Forgot Password?",
+  "@forgotPassword": { "description": "Forgot password button text" },
+  "forgotPasswordComingSoon": "Forgot password feature coming soon",
+  "@forgotPasswordComingSoon": { "description": "Snackbar text for forgot password feature" },
+  "or": "OR",
+  "@or": { "description": "Divider text for alternative options" },
+  "continueAsGuest": "Continue as Guest",
+  "@continueAsGuest": { "description": "Button text to continue as guest" },
+  "dontHaveAccount": "Don't have an account?",
+  "@dontHaveAccount": { "description": "Prompt for users without account" },
+  "signUp": "Sign Up",
+  "@signUp": { "description": "Sign up button text" },
+  "signUpComingSoon": "Sign up feature coming soon",
+  "@signUpComingSoon": { "description": "Snackbar text for sign up feature" },
+  "connectViaWirelessNetwork": "Connect via wireless network",
+  "@connectViaWirelessNetwork": { "description": "Subtitle for Wi-Fi connection option" },
+  "connectViaBluetoothPairing": "Connect via Bluetooth pairing",
+  "@connectViaBluetoothPairing": { "description": "Subtitle for Bluetooth connection option" }
+  ,"ecgWaveform": "ECG Waveform",
+  "@ecgWaveform": { "description": "ECG waveform section header" },
+  "live": "LIVE",
+  "@live": { "description": "Indicator for live ECG" },
+  "stethoscopeConnected": "Stethoscope connected",
+  "@stethoscopeConnected": { "description": "Stethoscope connected status text" },
+  "disconnect": "Disconnect",
+  "@disconnect": { "description": "Disconnect button text" },
+  "analyzing": "Analyzing...",
+  "@analyzing": { "description": "Text shown while analyzing audio" },
+  "connectDigitalStethoscope": "Connect Digital Stethoscope",
+  "@connectDigitalStethoscope": { "description": "Text shown when stethoscope is not connected" },
+  "chooseConnectionMethod": "Choose connection method:",
+  "@chooseConnectionMethod": { "description": "Text asking user to choose connection method" },
+  "selectDiseaseCategory": "Select Disease Category",
+  "@selectDiseaseCategory": { "description": "Dialog title for disease selection" },
+  "pneumoniaTB": "Pneumonia & TB Detection",
+  "@pneumoniaTB": { "description": "Option for pneumonia and TB detection" },
+  "copdAsthma": "COPD & Asthma Detection", 
+  "@copdAsthma": { "description": "Option for COPD and asthma detection" },
+  "chooseAnalysisType": "Choose the type of analysis you want to perform:",
+  "@chooseAnalysisType": { "description": "Description text for disease selection" }
+}

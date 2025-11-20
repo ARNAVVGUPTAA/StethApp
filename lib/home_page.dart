@@ -1,9 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'l10n/app_localizations.dart';
 import 'stethoscope_model.dart';
+import 'language_provider.dart';
 import 'dart:math' as math;
 
+// Top-level function for processing analysis results in isolate
+Map<String, dynamic> _processAnalysisResults(Map<String, dynamic> rawResult) {
+  // This function processes the raw analysis results
+  // and can include heavy computation like statistical analysis
+  try {
+    final String predictedClass = rawResult['predicted_class'] ?? 'Normal';
+    final Map<String, dynamic> probabilities = rawResult['probabilities'] ?? {};
+
+    // Simulate some heavy result processing that can be done in isolate
+    final processed = <String, dynamic>{
+      'predicted_class': predictedClass,
+      'probabilities': probabilities,
+      'risk_level': rawResult['risk_level'] ?? 'Low',
+      'confidence': rawResult['confidence'] ?? 0.0,
+      'processed_timestamp': DateTime.now().millisecondsSinceEpoch,
+      'is_abnormal': predictedClass != 'Normal',
+    };
+
+    // Add any additional processing
+    processed['processing_complete'] = true;
+
+    return processed;
+  } catch (e) {
+    return {
+      'predicted_class': 'Normal',
+      'probabilities': {'Normal': 0.9, 'Pneumonia': 0.05, 'TB': 0.05},
+      'error': e.toString(),
+      'processing_complete': false,
+    };
+  }
+}
+
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final LanguageProvider languageProvider;
+
+  const HomePage({super.key, required this.languageProvider});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -31,7 +68,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       begin: 0,
       end: 2 * math.pi,
     ).animate(_waveController);
-    _loadModel();
+    // Show disease selection dialog instead of auto-loading model
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showDiseaseSelectionDialog();
+    });
   }
 
   @override
@@ -57,21 +97,122 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     overlay.insert(overlayEntry);
   }
 
-  Future<void> _loadModel() async {
+  void _showDiseaseSelectionDialog() {
+    final l10n = AppLocalizations.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: Text(
+            l10n?.selectDiseaseCategory ?? 'Select Disease Category',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n?.chooseAnalysisType ??
+                    'Choose the type of analysis you want to perform:',
+                style: TextStyle(color: Colors.grey[400]),
+              ),
+              const SizedBox(height: 20),
+
+              // Pneumonia & TB Option
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _loadModel(DiseaseCategory.pneumoniaTB);
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.healing, color: Colors.blue, size: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n?.pneumoniaTB ?? 'Pneumonia & TB Detection',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // COPD & Asthma Option
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _loadModel(DiseaseCategory.copdAsthma);
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.green),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.air, color: Colors.green, size: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n?.copdAsthma ?? 'COPD & Asthma Detection',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadModel(DiseaseCategory category) async {
     setState(() {
       _isModelLoaded = false;
     });
 
-    print('Loading stethoscope model...');
-    bool success = await _model.loadModel();
+    print('Loading ${category.name} model...');
+    bool success = await _model.loadModel(category);
 
     setState(() {
       _isModelLoaded = success;
     });
 
     if (mounted) {
+      final l10n = AppLocalizations.of(context);
+      final categoryName = category == DiseaseCategory.pneumoniaTB
+          ? (l10n?.pneumoniaTB ?? 'Pneumonia & TB')
+          : (l10n?.copdAsthma ?? 'COPD & Asthma');
+
       _showToast(
-        success ? 'Model loaded successfully' : 'Failed to load model',
+        success
+            ? '${categoryName} model loaded successfully'
+            : 'Failed to load ${categoryName} model',
         backgroundColor: success ? Colors.green : Colors.red,
         icon: success ? Icons.check_circle : Icons.error,
       );
@@ -79,10 +220,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _analyzeAudio() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_isModelLoaded) {
       if (mounted) {
         _showToast(
-          'Model not loaded yet',
+          l10n.modelNotLoaded,
           backgroundColor: Colors.orange,
           icon: Icons.warning,
         );
@@ -97,9 +239,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       print('Starting audio analysis...');
 
-      // ✅ Use main thread model (isolates can't access Flutter assets)
-      Map<String, dynamic> result = await _model
-          .predict([])
+      // 🧵 THREADING STRATEGY:
+      // 1. Model loading: Main thread (required for asset access)
+      // 2. Model inference: Main thread with yielding (required for TFLite + assets)
+      // 3. Result processing: Separate isolate (compute function)
+
+      // Step 1: Model prediction with yielding (background-friendly on main thread)
+      Map<String, dynamic> rawResult = await _model
+          .predictWithYielding([])
           .timeout(
             const Duration(seconds: 15),
             onTimeout: () {
@@ -107,12 +254,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             },
           );
 
+      // Step 2: Process results in isolate (heavy computation)
+      print('Processing results in separate thread...');
+      Map<String, dynamic> processedResult = await compute(
+        _processAnalysisResults,
+        rawResult,
+      );
+
       setState(() {
-        _lastResult = result;
+        _lastResult = processedResult;
         _isAnalyzing = false;
       });
 
-      print('Analysis complete: ${result['predicted_class']}');
+      print('Analysis complete: ${processedResult['predicted_class']}');
 
       // Show popup with all dataset results
       _showDatasetResults();
@@ -123,7 +277,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       });
 
       _showToast(
-        'Analysis failed: $e',
+        l10n.analysisFailed(e.toString()),
         backgroundColor: Colors.red,
         icon: Icons.error,
       );
@@ -143,10 +297,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return const AlertDialog(
+        final l10n = AppLocalizations.of(context)!;
+        return AlertDialog(
           backgroundColor: Colors.grey,
           title: Text(
-            'Loading Audio Files...',
+            l10n.loadingAudioFiles,
             style: TextStyle(color: Colors.white),
           ),
           content: SizedBox(
@@ -158,7 +313,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
 
     try {
-      // ✅ Load all audio file results on main thread (isolates can't access assets)
+      // ✅ Load all audio file results with yielding (background-friendly but on main thread)
       List<Map<String, dynamic>> allResults = await _model.getAllAudioResults();
 
       // Close loading dialog
@@ -168,11 +323,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       showDialog(
         context: context,
         builder: (BuildContext context) {
+          final l10n = AppLocalizations.of(context)!;
           return AlertDialog(
             backgroundColor: Colors.grey[900],
-            title: const Text(
-              'Audio Dataset Results',
-              style: TextStyle(
+            title: Text(
+              l10n.audioDatasetResults,
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -231,10 +387,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
-                  'Close',
-                  style: TextStyle(color: Colors.blue),
-                ),
+                child: Text(l10n.close, style: TextStyle(color: Colors.blue)),
               ),
             ],
           );
@@ -273,8 +426,47 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildLanguageSelector(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.language, color: Colors.white70),
+      onSelected: (String languageCode) {
+        widget.languageProvider.setLanguage(languageCode);
+      },
+      itemBuilder: (BuildContext context) {
+        return LanguageProvider.supportedLanguages.entries.map((entry) {
+          final isSelected =
+              widget.languageProvider.currentLanguageCode == entry.key;
+          return PopupMenuItem<String>(
+            value: entry.key,
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? Icons.check : Icons.language,
+                  color: isSelected ? Colors.blue : Colors.white70,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  entry.value,
+                  style: TextStyle(
+                    color: isSelected ? Colors.blue : Colors.white,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -282,9 +474,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           children: [
             Image.asset('assets/icon/co-logo.png', width: 32, height: 32),
             const SizedBox(width: 8),
-            const Text(
-              'Coeur AI',
-              style: TextStyle(
+            Text(
+              l10n.appTitle,
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -294,6 +486,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
+        actions: [_buildLanguageSelector(context)],
       ),
       body: Column(
         children: [
@@ -313,9 +506,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'ECG Waveform',
-                        style: TextStyle(
+                      Text(
+                        l10n.ecgWaveform,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -324,8 +517,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         children: [
                           Icon(Icons.circle, color: Colors.green, size: 12),
                           const SizedBox(width: 5),
-                          const Text(
-                            'LIVE',
+                          Text(
+                            l10n.live,
                             style: TextStyle(color: Colors.green, fontSize: 12),
                           ),
                         ],
@@ -379,8 +572,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   const SizedBox(height: 20),
                   Text(
                     _isStethoscopeConnected
-                        ? 'Stethoscope Connected'
-                        : 'Connect Digital Stethoscope',
+                        ? l10n.stethoscopeConnected
+                        : l10n.connectDigitalStethoscope,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -396,7 +589,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       _isStethoscopeConnected ? Icons.link_off : Icons.link,
                     ),
                     label: Text(
-                      _isStethoscopeConnected ? 'Disconnect' : 'Connect',
+                      _isStethoscopeConnected
+                          ? l10n.disconnect
+                          : l10n.connectStethoscope,
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isStethoscopeConnected
@@ -436,7 +631,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           )
                         : const Icon(Icons.analytics, color: Colors.white),
                     label: Text(
-                      _isAnalyzing ? 'Analyzing...' : 'Start AI Analysis',
+                      _isAnalyzing ? l10n.analyzing : l10n.startAIAnalysis,
                       style: const TextStyle(color: Colors.white, fontSize: 18),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -479,13 +674,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _showConnectionDialog() {
+    final l10n = AppLocalizations.of(context)!;
+
     if (_isStethoscopeConnected) {
       // Disconnect
       setState(() {
         _isStethoscopeConnected = false;
       });
       _showToast(
-        'Stethoscope disconnected',
+        l10n.stethoscopeDisconnected,
         backgroundColor: Colors.red,
         icon: Icons.link_off,
       );
@@ -496,27 +693,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         builder: (BuildContext context) {
           return AlertDialog(
             backgroundColor: Colors.grey[900],
-            title: const Text(
-              'Connect Stethoscope',
-              style: TextStyle(color: Colors.white),
+            title: Text(
+              l10n.connectStethoscope,
+              style: const TextStyle(color: Colors.white),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Choose connection method:',
-                  style: TextStyle(color: Colors.grey),
+                Text(
+                  l10n.chooseConnectionMethod,
+                  style: const TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 20),
                 ListTile(
                   leading: const Icon(Icons.wifi, color: Colors.blue),
-                  title: const Text(
-                    'Wi-Fi',
-                    style: TextStyle(color: Colors.white),
+                  title: Text(
+                    l10n.wifi,
+                    style: const TextStyle(color: Colors.white),
                   ),
-                  subtitle: const Text(
-                    'Connect via wireless network',
-                    style: TextStyle(color: Colors.grey),
+                  subtitle: Text(
+                    l10n.connectViaWirelessNetwork,
+                    style: const TextStyle(color: Colors.grey),
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -525,13 +722,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 ListTile(
                   leading: const Icon(Icons.bluetooth, color: Colors.blue),
-                  title: const Text(
-                    'Bluetooth',
-                    style: TextStyle(color: Colors.white),
+                  title: Text(
+                    l10n.bluetooth,
+                    style: const TextStyle(color: Colors.white),
                   ),
-                  subtitle: const Text(
-                    'Connect via Bluetooth pairing',
-                    style: TextStyle(color: Colors.grey),
+                  subtitle: Text(
+                    l10n.connectViaBluetoothPairing,
+                    style: const TextStyle(color: Colors.grey),
                   ),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -543,7 +740,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: Text(l10n.cancel),
               ),
             ],
           );
@@ -553,9 +750,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _connectViaWiFi() async {
+    final l10n = AppLocalizations.of(context)!;
+
     // Show connecting message
     _showToast(
-      'Connecting via Wi-Fi...',
+      l10n.connectingViaWifi,
       backgroundColor: Colors.orange,
       icon: Icons.wifi,
     );
@@ -568,16 +767,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     _showToast(
-      'Connected via Wi-Fi successfully!',
+      l10n.connectedViaWifiSuccess,
       backgroundColor: Colors.green,
       icon: Icons.check_circle,
     );
   }
 
   void _connectViaBluetooth() async {
+    final l10n = AppLocalizations.of(context)!;
     // Show connecting message
     _showToast(
-      'Pairing via Bluetooth...',
+      l10n.pairingViaBluetooth,
       backgroundColor: Colors.orange,
       icon: Icons.bluetooth,
     );
@@ -590,16 +790,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     _showToast(
-      'Connected via Bluetooth successfully!',
+      l10n.connectedViaBluetoothSuccess,
       backgroundColor: Colors.green,
       icon: Icons.check_circle,
     );
   }
 
   void _startAIAnalysis() async {
+    final l10n = AppLocalizations.of(context)!;
     // Show demo notification
     _showToast(
-      'Using dummy dataset for demo',
+      l10n.usingDummyDataset,
       backgroundColor: Colors.blue,
       icon: Icons.info,
     );

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'l10n/app_localizations.dart';
 import 'home_page.dart';
+import 'language_provider.dart';
+import 'auth_service.dart';
+import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final LanguageProvider languageProvider;
+
+  const LoginPage({super.key, required this.languageProvider});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -12,6 +18,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   bool _rememberMe = false;
@@ -56,24 +63,120 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   void _handleLogin() async {
-    // Development mode - bypass all validation and go straight to home
-    setState(() {
-      _isLoading = true;
-    });
+    final l10n = AppLocalizations.of(context)!;
 
-    // Quick loading animation
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    // Navigate to home page
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const HomePage()),
-      );
+    // Validate email
+    if (_emailController.text.isEmpty) {
+      _showError(l10n.pleaseEnterEmail);
+      return;
     }
+
+    if (!RegExp(
+      r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$',
+    ).hasMatch(_emailController.text)) {
+      _showError(l10n.pleaseEnterValidEmail);
+      return;
+    }
+
+    // Validate password
+    if (_passwordController.text.isEmpty) {
+      _showError(l10n.pleaseEnterPassword);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await _authService.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        if (response.user != null) {
+          // Check if email is verified
+          if (!_authService.isEmailVerified) {
+            _showEmailNotVerifiedDialog();
+            return;
+          }
+
+          // Navigate to home page
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) =>
+                  HomePage(languageProvider: widget.languageProvider),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        String errorMessage = e.toString();
+        if (errorMessage.contains('Invalid login credentials')) {
+          errorMessage = 'Invalid email or password';
+        }
+        _showError(errorMessage);
+      }
+    }
+  }
+
+  void _showEmailNotVerifiedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Email Not Verified', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Text(
+          'Please verify your email address before signing in. Check your inbox for the verification link.',
+          style: TextStyle(color: Colors.grey[300]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              try {
+                await _authService.resendVerificationEmail(
+                  _emailController.text.trim(),
+                );
+                if (mounted) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Verification email resent!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  _showError('Failed to resend email: $e');
+                }
+              }
+            },
+            child: const Text('Resend Email'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   Widget _buildLogo() {
@@ -168,6 +271,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   Widget _buildLoginButton() {
+    final l10n = AppLocalizations.of(context);
+
     return Container(
       width: double.infinity,
       height: 55,
@@ -191,9 +296,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Text(
-                'Sign In',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            : Text(
+                l10n?.login ?? 'Login',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
       ),
     );
@@ -232,49 +340,32 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildSignUpSection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Don't have an account? ",
-          style: TextStyle(color: Colors.grey[400]),
-        ),
-        TextButton(
-          onPressed: () {
-            // TODO: Implement sign up
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Sign up feature coming soon')),
-            );
-          },
-          child: const Text(
-            'Sign Up',
-            style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [_buildLanguageSelector(context)],
+      ),
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: SlideTransition(
             position: _slideAnimation,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 10),
 
                   // Logo and Title
                   _buildLogo(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
                   const Text(
                     'Coeur AI',
@@ -319,7 +410,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                         // Email Field
                         _buildInputField(
                           controller: _emailController,
-                          label: 'Email Address',
+                          label: l10n?.email ?? 'Email',
                           hint: 'Enter your email',
                           icon: Icons.email_outlined,
                           validator: (value) {
@@ -338,7 +429,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                         // Password Field
                         _buildInputField(
                           controller: _passwordController,
-                          label: 'Password',
+                          label: l10n?.password ?? 'Password',
                           hint: 'Enter your password',
                           icon: Icons.lock_outline,
                           isPassword: true,
@@ -387,7 +478,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             onPressed: () {
                               Navigator.of(context).pushReplacement(
                                 MaterialPageRoute(
-                                  builder: (context) => const HomePage(),
+                                  builder: (context) => HomePage(
+                                    languageProvider: widget.languageProvider,
+                                  ),
                                 ),
                               );
                             },
@@ -407,10 +500,39 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 20),
 
-                        // Sign Up Section
-                        _buildSignUpSection(),
+                        // Sign Up Button
+                        Container(
+                          width: double.infinity,
+                          height: 55,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => SignUpPage(
+                                    languageProvider: widget.languageProvider,
+                                  ),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[800],
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Sign Up',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -420,6 +542,43 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLanguageSelector(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.language, color: Colors.white70),
+      onSelected: (String languageCode) {
+        widget.languageProvider.setLanguage(languageCode);
+      },
+      itemBuilder: (BuildContext context) {
+        return LanguageProvider.supportedLanguages.entries.map((entry) {
+          final isSelected =
+              widget.languageProvider.currentLanguageCode == entry.key;
+          return PopupMenuItem<String>(
+            value: entry.key,
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? Icons.check : Icons.language,
+                  color: isSelected ? Colors.blue : Colors.white70,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  entry.value,
+                  style: TextStyle(
+                    color: isSelected ? Colors.blue : Colors.white,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
     );
   }
 }

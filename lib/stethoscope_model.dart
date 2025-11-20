@@ -3,13 +3,50 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 
-/// Model for pneumonia and TB detection from stethoscope audio
+enum DiseaseCategory { pneumoniaTB, copdAsthma }
+
+/// Model for disease detection from stethoscope audio
 class StethoscopeModel {
   bool _isModelLoaded = false;
   Interpreter? _interpreter;
   List<String> _audioFiles = [];
+  DiseaseCategory? _currentCategory;
 
-  static const List<String> classLabels = ['Normal', 'Pneumonia', 'TB'];
+  // Class labels based on selected category
+  List<String> get classLabels {
+    switch (_currentCategory) {
+      case DiseaseCategory.pneumoniaTB:
+        return ['Normal', 'Pneumonia', 'TB'];
+      case DiseaseCategory.copdAsthma:
+        return ['Normal', 'COPD', 'Asthma'];
+      default:
+        return ['Normal', 'Pneumonia', 'TB'];
+    }
+  }
+
+  // Model file paths
+  String get _modelPath {
+    switch (_currentCategory) {
+      case DiseaseCategory.pneumoniaTB:
+        return 'assets/models/end_to_end_model_legacy(2).tflite';
+      case DiseaseCategory.copdAsthma:
+        return 'assets/models/copd+asthma.tflite';
+      default:
+        return 'assets/models/end_to_end_model_legacy(2).tflite';
+    }
+  }
+
+  // Dataset folder paths
+  String get _datasetPath {
+    switch (_currentCategory) {
+      case DiseaseCategory.pneumoniaTB:
+        return 'assets/pneumonia+tb/';
+      case DiseaseCategory.copdAsthma:
+        return 'assets/copd+asthma/';
+      default:
+        return 'assets/';
+    }
+  }
 
   // ===== Inference params (match test2.py) =====
   static const int sr = 16000;
@@ -26,30 +63,28 @@ class StethoscopeModel {
       final manifestContent = await rootBundle.loadString('AssetManifest.json');
       final Map<String, dynamic> manifestMap = json.decode(manifestContent);
 
+      // Use category-specific dataset path
+      final targetPath = _datasetPath;
       _audioFiles = manifestMap.keys
           .where(
-            (String key) =>
-                key.startsWith('assets/') &&
-                key.endsWith('.wav') &&
-                !key.substring(7).contains('/'),
+            (String key) => key.startsWith(targetPath) && key.endsWith('.wav'),
           )
           .toList();
 
-      print('DEBUG: Discovered audio files: $_audioFiles');
+      print('DEBUG: Discovered audio files in $targetPath: $_audioFiles');
     } catch (e) {
       print('ERROR: Failed to discover audio files: $e');
       _audioFiles = [];
     }
   }
 
-  Future<bool> loadModel() async {
+  Future<bool> loadModel(DiseaseCategory category) async {
     try {
-      print('DEBUG: Loading stethoscope model...');
+      _currentCategory = category;
+      print('DEBUG: Loading model for ${category.name}...');
       await _discoverAudioFiles();
 
-      final interpreter = await Interpreter.fromAsset(
-        'assets/models/end_to_end_model_legacy(2).tflite',
-      );
+      final interpreter = await Interpreter.fromAsset(_modelPath);
       _interpreter = interpreter;
       interpreter.allocateTensors();
 
@@ -375,6 +410,42 @@ class StethoscopeModel {
 
   bool get isLoaded => _isModelLoaded;
 
+  /// Background-friendly prediction with UI yielding
+  Future<Map<String, dynamic>> predictWithYielding(
+    List<double> audioData,
+  ) async {
+    try {
+      // Yield to UI before starting
+      await Future.delayed(Duration.zero);
+
+      // Pick a random audio file and use its prediction
+      final random = math.Random();
+      if (_audioFiles.isEmpty) {
+        print('DEBUG: No audio files found, returning default prediction');
+        return {
+          'predicted_class': 'Normal',
+          'probabilities': {'Normal': 0.9, 'Pneumonia': 0.05, 'TB': 0.05},
+        };
+      }
+
+      String randomFile = _audioFiles[random.nextInt(_audioFiles.length)];
+      print('DEBUG: Predicting with random file: $randomFile');
+
+      // Yield to UI before heavy computation
+      await Future.delayed(Duration.zero);
+
+      return await predictFromFile(randomFile);
+    } catch (e) {
+      print('ERROR in predictWithYielding(): $e');
+      // Return a safe default result
+      return {
+        'predicted_class': 'Normal',
+        'probabilities': {'Normal': 0.9, 'Pneumonia': 0.05, 'TB': 0.05},
+        'error': e.toString(),
+      };
+    }
+  }
+
   /// Predict using real audio files (for button analysis)
   Future<Map<String, dynamic>> predict(List<double> audioData) async {
     try {
@@ -405,8 +476,14 @@ class StethoscopeModel {
   Future<List<Map<String, dynamic>>> getAllAudioResults() async {
     List<Map<String, dynamic>> results = [];
 
-    for (String audioFile in _audioFiles) {
+    for (int i = 0; i < _audioFiles.length; i++) {
+      String audioFile = _audioFiles[i];
       try {
+        // Yield to the UI every few files to prevent blocking
+        if (i % 3 == 0) {
+          await Future.delayed(Duration.zero);
+        }
+
         Map<String, dynamic> result = await predictFromFile(audioFile);
 
         String fileName = audioFile.split('/').last.replaceAll('.wav', '');
