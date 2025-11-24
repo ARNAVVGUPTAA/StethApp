@@ -3,8 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'l10n/app_localizations.dart';
 import 'stethoscope_model.dart';
 import 'language_provider.dart';
-import 'bluetooth_service.dart';
-import 'audio_processor.dart';
 import 'dart:math' as math;
 
 // Top-level function for processing analysis results in isolate
@@ -50,7 +48,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final StethoscopeModel _model = StethoscopeModel();
-  final StethBluetoothService _bluetoothService = StethBluetoothService();
   bool _isModelLoaded = false;
   bool _isAnalyzing = false;
   Map<String, dynamic>? _lastResult;
@@ -59,8 +56,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   late Animation<double> _waveAnimation;
 
   bool _isStethoscopeConnected = false;
-  List<double> _realtimeAudioData = [];
-  final int _displaySampleCount = 200;
 
   @override
   void initState() {
@@ -73,27 +68,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       begin: 0,
       end: 2 * math.pi,
     ).animate(_waveController);
-    
-    // Listen to Bluetooth audio data stream
-    _bluetoothService.audioDataStream.listen((data) {
-      setState(() {
-        _realtimeAudioData.addAll(data);
-        // Keep only the last N samples for display
-        if (_realtimeAudioData.length > _displaySampleCount) {
-          _realtimeAudioData = _realtimeAudioData.sublist(
-            _realtimeAudioData.length - _displaySampleCount
-          );
-        }
-      });
-    });
-
-    // Listen to connection state
-    _bluetoothService.connectionStateStream.listen((isConnected) {
-      setState(() {
-        _isStethoscopeConnected = isConnected;
-      });
-    });
-    
     // Show disease selection dialog instead of auto-loading model
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showDiseaseSelectionDialog();
@@ -104,7 +78,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     _model.dispose();
     _waveController.dispose();
-    _bluetoothService.dispose();
     super.dispose();
   }
 
@@ -554,20 +527,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 Expanded(
-                  child: _realtimeAudioData.isEmpty
-                      ? AnimatedBuilder(
-                          animation: _waveAnimation,
-                          builder: (context, child) {
-                            return CustomPaint(
-                              painter: WaveformPainter(_waveAnimation.value, []),
-                              size: const Size(double.infinity, 150),
-                            );
-                          },
-                        )
-                      : CustomPaint(
-                          painter: WaveformPainter(0, _realtimeAudioData),
-                          size: const Size(double.infinity, 150),
-                        ),
+                  child: AnimatedBuilder(
+                    animation: _waveAnimation,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        painter: WaveformPainter(_waveAnimation.value),
+                        size: const Size(double.infinity, 150),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -807,25 +775,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _connectViaBluetooth() async {
     final l10n = AppLocalizations.of(context)!;
-    
-    // Request Bluetooth permissions first
-    _showToast(
-      'Requesting Bluetooth permissions...',
-      backgroundColor: Colors.blue,
-      icon: Icons.bluetooth_searching,
-    );
-    
-    bool permissionsGranted = await _bluetoothService.requestPermissions();
-    
-    if (!permissionsGranted) {
-      _showToast(
-        'Bluetooth permissions are required to connect to stethoscope. Please enable them in settings.',
-        backgroundColor: Colors.red,
-        icon: Icons.error,
-      );
-      return;
-    }
-    
     // Show connecting message
     _showToast(
       l10n.pairingViaBluetooth,
@@ -833,33 +782,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       icon: Icons.bluetooth,
     );
 
-    try {
-      bool connected = await _bluetoothService.connectToStethoscope();
-      
-      if (connected) {
-        setState(() {
-          _isStethoscopeConnected = true;
-        });
+    // Simulate connection delay
+    await Future.delayed(const Duration(seconds: 2));
 
-        _showToast(
-          l10n.connectedViaBluetoothSuccess,
-          backgroundColor: Colors.green,
-          icon: Icons.check_circle,
-        );
-      } else {
-        _showToast(
-          'Failed to connect to stethoscope. Make sure device is nearby and Bluetooth is enabled.',
-          backgroundColor: Colors.red,
-          icon: Icons.error,
-        );
-      }
-    } catch (e) {
-      _showToast(
-        'Error connecting: $e',
-        backgroundColor: Colors.red,
-        icon: Icons.error,
-      );
-    }
+    setState(() {
+      _isStethoscopeConnected = true;
+    });
+
+    _showToast(
+      l10n.connectedViaBluetoothSuccess,
+      backgroundColor: Colors.green,
+      icon: Icons.check_circle,
+    );
   }
 
   void _startAIAnalysis() async {
@@ -938,9 +872,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 // Custom Waveform Painter for animated ECG waveforms
 class WaveformPainter extends CustomPainter {
   final double animationValue;
-  final List<double> audioData;
 
-  WaveformPainter(this.animationValue, this.audioData);
+  WaveformPainter(this.animationValue);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -954,51 +887,29 @@ class WaveformPainter extends CustomPainter {
     final height = size.height;
     final centerY = height / 2;
 
-    if (audioData.isEmpty) {
-      // Create animated dummy ECG-like waveform when no real data
-      for (double x = 0; x <= width; x += 2) {
-        final normalizedX = x / width;
-        final frequency = 2 * math.pi * 2; // ECG frequency
+    // Create ECG-like waveform
+    for (double x = 0; x <= width; x += 2) {
+      final normalizedX = x / width;
+      final frequency = 2 * math.pi * 2; // ECG frequency
 
-        // Create characteristic ECG pattern
-        double y;
-        final phase = frequency * normalizedX + animationValue;
-        final heartBeat = math.sin(phase);
+      // Create characteristic ECG pattern
+      double y;
+      final phase = frequency * normalizedX + animationValue;
+      final heartBeat = math.sin(phase);
 
-        // Add sharp spikes for QRS complex
-        if (heartBeat > 0.7) {
-          y = centerY - height * 0.3 * (1 + math.sin(phase * 10));
-        } else if (heartBeat < -0.7) {
-          y = centerY + height * 0.1 * math.sin(phase * 5);
-        } else {
-          y = centerY + heartBeat * height * 0.1;
-        }
-
-        if (x == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
+      // Add sharp spikes for QRS complex
+      if (heartBeat > 0.7) {
+        y = centerY - height * 0.3 * (1 + math.sin(phase * 10));
+      } else if (heartBeat < -0.7) {
+        y = centerY + height * 0.1 * math.sin(phase * 5);
+      } else {
+        y = centerY + heartBeat * height * 0.1;
       }
-    } else {
-      // Display real audio data (normalized between -1 and 1)
-      final samplesPerPixel = math.max(1, audioData.length / width).ceil();
-      
-      for (int pixelX = 0; pixelX < width.toInt(); pixelX++) {
-        final sampleIndex = (pixelX * samplesPerPixel).clamp(0, audioData.length - 1);
-        
-        // Get the sample value (already normalized between -1 and 1)
-        final normalizedValue = audioData[sampleIndex];
-        
-        // Map to screen coordinates
-        // Scale by 0.8 to leave some margin at top and bottom
-        final y = centerY - (normalizedValue * height * 0.4);
-        
-        if (pixelX == 0) {
-          path.moveTo(pixelX.toDouble(), y);
-        } else {
-          path.lineTo(pixelX.toDouble(), y);
-        }
+
+      if (x == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
       }
     }
 
